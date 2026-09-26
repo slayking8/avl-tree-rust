@@ -1,7 +1,5 @@
 use std::cmp;
 use std::mem;
-use std::mem::swap;
-use std::ops::RemAssign;
 
 #[derive(Debug)]
 struct Node {
@@ -56,7 +54,119 @@ impl Tree {
                 root_node.right = Some(Box::new(Tree::new(Some(key))));
             }
         }
+        self.balance(key);
+    }
 
+    fn delete_two_children_parrent(&mut self) {
+        let Some(root) = self.root.as_mut() else {
+            return;
+        };
+        let Some(right_tree) = root.right.as_mut() else {
+            return;
+        };
+        // optional: returning early avoids unnecessary comparisons.
+        if right_tree.root.is_none() {
+            return;
+        };
+
+        let mut successor = right_tree.in_order_successor();
+        if successor.is_none() {
+            let mut temp = root.right.take();
+            if let Some(temp_tree) = temp.as_mut() {
+                if let Some(temp_tree_root) = temp_tree.root.as_mut() {
+                    temp_tree_root.left = root.left.take();
+                    mem::swap(root, temp_tree_root);
+                }
+            }
+        } else {
+            if let Some(successor_tree) = successor.as_mut() {
+                if let Some(successor_tree_root) = successor_tree.root.as_mut() {
+                    successor_tree_root.left = root.left.take();
+                    successor_tree_root.right = root.right.take();
+                    mem::swap(root, successor_tree_root);
+                }
+            }
+        }
+    }
+
+    fn in_order_successor(&mut self) -> Option<Box<Tree>> {
+        let Some(root) = self.root.as_mut() else {
+            return None;
+        };
+        let Some(left_tree) = root.left.as_mut() else {
+            return None;
+        };
+
+        if let Some(left_tree_root) = left_tree.root.as_mut() {
+            if left_tree_root.left.is_some() {
+                return left_tree.in_order_successor();
+            }
+
+            let mut successor = root.left.take();
+            if let Some(tree) = successor.as_mut() {
+                if let Some(tree_root) = tree.root.as_mut() {
+                    root.left = tree_root.right.take();
+                }
+            }
+            return successor;
+        }
+
+        return None;
+    }
+
+    fn delete(&mut self, key: i32) {
+        let Some(root) = self.root.as_mut() else {
+            return;
+        };
+
+        if key < root.data {
+            let Some(left_node) = root.left.as_mut() else {
+                return;
+            };
+            let Some(left_node_root) = left_node.root.as_mut() else {
+                return;
+            };
+
+            if left_node_root.data == key {
+                match (left_node_root.left.as_ref(), left_node_root.right.as_ref()) {
+                    (None, None) => root.left = None,
+                    (_, None) => root.left = left_node_root.left.take(),
+                    (None, _) => root.left = left_node_root.right.take(),
+                    (_, _) => {
+                        left_node.delete_two_children_parrent();
+                    }
+                }
+            } else {
+                left_node.delete(key);
+            }
+        } else if key > root.data {
+            let Some(right_node) = root.right.as_mut() else {
+                return;
+            };
+            let Some(right_node_root) = right_node.root.as_mut() else {
+                return;
+            };
+
+            if right_node_root.data == key {
+                match (
+                    right_node_root.left.as_ref(),
+                    right_node_root.right.as_ref(),
+                ) {
+                    (None, None) => root.right = None,
+                    (_, None) => root.right = right_node_root.left.take(),
+                    (None, _) => root.right = right_node_root.right.take(),
+                    (_, _) => right_node.delete_two_children_parrent(),
+                }
+            } else {
+                right_node.delete(key);
+            }
+        } else {
+            self.delete_two_children_parrent();
+        }
+        self.balance(key);
+    }
+
+    fn balance(&mut self, key: i32) {
         self.update_height();
         let balance = self.get_balance();
         let Some(root) = self.root.as_mut() else {
@@ -90,138 +200,6 @@ impl Tree {
             } else {
                 left_tree.left_rotation();
                 self.right_rotation();
-            }
-        }
-    }
-
-    fn in_order_successor(&mut self) -> Option<Box<Tree>> {
-        let root = self.root.as_mut().unwrap();
-        // let right_node = root.right.as_mut().unwrap();
-        let Some(right_node) = root.right.as_mut() else {
-            println!("CLUES");
-            return None;
-        };
-
-        if let Some(right_node_root) = right_node.root.as_mut() {
-            if let Some(right_node_left_child) = right_node_root.left.as_mut() {
-                let mut leftmost = right_node_left_child.leftmost_child();
-                if leftmost.is_none() {
-                    mem::swap(&mut right_node_root.left, &mut leftmost);
-                    if let Some(leftmost_tree) = leftmost.as_mut() {
-                        if let Some(leftmost_tree_root) = leftmost_tree.root.as_mut() {
-                            right_node_root.left = leftmost_tree_root.right.take();
-                        }
-                    }
-                    return leftmost;
-                } else {
-                    if let Some(left_child_root) = right_node_left_child.root.as_mut() {
-                        if let Some(leftmost_tree) = leftmost.as_mut() {
-                            if let Some(leftmost_tree_root) = leftmost_tree.root.as_mut() {
-                                left_child_root.left = leftmost_tree_root.right.take();
-                                leftmost_tree_root.left = root.left.take();
-                                leftmost_tree_root.right = root.right.take();
-                                mem::swap(root, leftmost_tree_root);
-                            }
-                        }
-                    }
-                    return leftmost;
-                }
-            }
-        }
-
-        println!("CLUES 2");
-        return root.right.take();
-    }
-    // It's just helper to walk the tree recursively.
-    fn leftmost_child(&mut self) -> Option<Box<Tree>> {
-        let Some(root) = self.root.as_mut() else {
-            return None;
-        };
-        let Some(left_node) = root.left.as_mut() else {
-            return None;
-        };
-
-        if let Some(left_node_root) = left_node.root.as_mut() {
-            if left_node_root.left.is_some() {
-                return left_node.leftmost_child();
-            }
-
-            let mut successor = root.left.take();
-            if let Some(tree) = successor.as_mut() {
-                if let Some(tree_root) = tree.root.as_mut() {
-                    root.left = tree_root.right.take();
-                }
-            }
-
-            return successor;
-        }
-
-        None
-    }
-
-    fn delete(&mut self, key: i32) {
-        let Some(root) = self.root.as_mut() else {
-            return;
-        };
-
-        if key < root.data {
-            if let Some(left_node) = root.left.as_mut() {
-                if let Some(left_node_root) = left_node.root.as_mut() {
-                    if left_node_root.data == key {
-                        println!("LEFT: {:?}", left_node_root);
-                        match (left_node_root.left.as_ref(), left_node_root.right.as_ref()) {
-                            (None, None) => root.left = None,
-                            (_, None) => root.left = left_node_root.left.take(),
-                            (None, _) => root.left = left_node_root.right.take(),
-                            (_, _) => {
-                                left_node.in_order_successor();
-                            }
-                        }
-                    } else {
-                        left_node.delete(key);
-                    }
-                }
-            }
-        } else if key > root.data {
-            if let Some(right_node) = root.right.as_mut() {
-                if let Some(right_node_root) = right_node.root.as_mut() {
-                    if right_node_root.data == key {
-                        // println!("RIGHT: {:?}", right_node_root);
-                        match (
-                            right_node_root.left.as_ref(),
-                            right_node_root.right.as_ref(),
-                        ) {
-                            (None, None) => {
-                                root.right = None;
-                                println!("NEVER");
-                            }
-                            (_, None) => {
-                                root.right = right_node_root.left.take();
-                                println!("NEVER");
-                            }
-                            (None, _) => {
-                                root.right = right_node_root.right.take();
-                                println!("NEVER");
-                            }
-                            (_, _) => {
-                                right_node.in_order_successor();
-                            }
-                        }
-                    } else {
-                        right_node.delete(key);
-                    }
-                }
-            }
-        } else {
-            println!("NEVER");
-            let mut successor = self.in_order_successor();
-            if let Some(successor_tree) = successor.as_mut() {
-                if let Some(successor_tree_root) = successor_tree.root.as_mut() {
-                    let self_root = self.root.as_mut().unwrap();
-
-                    successor_tree_root.left = self_root.left.take();
-                    mem::swap(self_root, successor_tree_root);
-                }
             }
         }
     }
@@ -278,7 +256,7 @@ impl Tree {
             return;
         };
 
-        let mut rrc = root.right.take();
+        let mut rrc = root.right.take(); // rrc == root right child
         let Some(rc) = rrc.as_mut() else {
             root.right = rrc;
             return;
@@ -302,7 +280,7 @@ impl Tree {
             return;
         };
 
-        let mut rlc = root.left.take();
+        let mut rlc = root.left.take(); // rlc == root left child
         let Some(lc) = rlc.as_mut() else {
             root.left = rlc;
             return;
@@ -324,31 +302,24 @@ impl Tree {
 
 fn main() {
     let mut tree = Tree::new(None);
-
-    tree.insert(9);
-    tree.insert(5);
-    tree.insert(10);
-    tree.insert(0);
-    tree.insert(6);
-    tree.insert(11);
-    tree.insert(-1);
-    tree.insert(1);
-    tree.insert(2);
-
-    println!("{:?}", tree);
-    println!();
-    println!();
-    tree.delete(5);
-    println!();
-    println!();
-    println!("{:?}", tree);
-
+    tree.insert("Ronaldo");
+    tree.insert("Miral");
+    tree.insert("Paulo");
     /*
-        tree.insert(10);
+        tree.insert(9);
+        tree.insert(15);
+        tree.insert(12);
         tree.insert(20);
-        tree.insert(30);
-        tree.insert(40);
-        tree.insert(50);
-        tree.insert(25);
+    */
+
+    tree.delete(9);
+    /*
+        println!("{:?}", tree);
+        println!();
+        println!();
+        tree.delete(9);
+        println!();
+        println!();
+        println!("{:?}", tree);
     */
 }
