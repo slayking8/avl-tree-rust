@@ -2,15 +2,15 @@ use std::cmp;
 use std::mem;
 
 #[derive(Debug)]
-struct Node {
-    data: i32,
-    left: Option<Box<Tree>>,
-    right: Option<Box<Tree>>,
+struct Node<T> {
+    data: T,
+    left: Option<Box<Tree<T>>>,
+    right: Option<Box<Tree<T>>>,
     height: isize,
 }
 
-impl Node {
-    fn new(data: i32) -> Self {
+impl<T> Node<T> {
+    fn new(data: T) -> Self {
         return Self {
             data: data,
             left: None,
@@ -21,21 +21,12 @@ impl Node {
 }
 
 #[derive(Debug)]
-struct Tree {
-    root: Option<Box<Node>>,
+struct Tree<T> {
+    root: Option<Box<Node<T>>>,
 }
 
-impl Tree {
-    fn new(data: Option<i32>) -> Self {
-        let Some(val) = data else {
-            return Self { root: None };
-        };
-        return Self {
-            root: Some(Box::new(Node::new(val))),
-        };
-    }
-
-    fn insert(&mut self, key: i32) {
+impl<T: std::cmp::PartialOrd + std::marker::Copy> Tree<T> {
+    fn insert(&mut self, key: T) {
         let Some(root_node) = self.root.as_mut() else {
             self.root = Some(Box::new(Node::new(key)));
             return;
@@ -55,6 +46,15 @@ impl Tree {
             }
         }
         self.balance(key);
+    }
+
+    fn new(data: Option<T>) -> Self {
+        let Some(val) = data else {
+            return Self { root: None };
+        };
+        return Self {
+            root: Some(Box::new(Node::new(val))),
+        };
     }
 
     fn delete_two_children_parrent(&mut self) {
@@ -89,7 +89,7 @@ impl Tree {
         }
     }
 
-    fn in_order_successor(&mut self) -> Option<Box<Tree>> {
+    fn in_order_successor(&mut self) -> Option<Box<Tree<T>>> {
         let Some(root) = self.root.as_mut() else {
             return None;
         };
@@ -114,7 +114,7 @@ impl Tree {
         return None;
     }
 
-    fn delete(&mut self, key: i32) {
+    fn delete(&mut self, key: T) {
         let Some(root) = self.root.as_mut() else {
             return;
         };
@@ -166,7 +166,7 @@ impl Tree {
         self.balance(key);
     }
 
-    fn balance(&mut self, key: i32) {
+    fn balance(&mut self, key: T) {
         self.update_height();
         let balance = self.get_balance();
         let Some(root) = self.root.as_mut() else {
@@ -300,26 +300,60 @@ impl Tree {
     }
 }
 
+/* Testing generics */
+#[derive(Debug, Clone, Copy)]
+struct Person<'a> {
+    name: &'a str,
+    age: u8,
+}
+
+impl<'a> Person<'a> {
+    fn new(name: &'a str, age: u8) -> Self {
+        Self {
+            name: name,
+            age: age,
+        }
+    }
+}
+
+impl<'a> PartialEq for Person<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        _ = self.name;
+        self.age == other.age
+    }
+}
+
+impl<'a> PartialOrd for Person<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.age.partial_cmp(&other.age)
+    }
+}
+
 fn main() {
+    let ab = String::from("Garmadon");
+    let ac = String::from("Loyd");
+    let ad = String::from("Kai");
+    let ae = String::from("Zane");
+
     let mut tree = Tree::new(None);
-    tree.insert("Ronaldo");
-    tree.insert("Miral");
-    tree.insert("Paulo");
+    tree.insert(Person::new(&ab, 22));
+    tree.insert(Person::new(&ac, 42));
+    tree.insert(Person::new(&ad, 12));
+    tree.insert(Person::new(&ae, 50));
+
     /*
-        tree.insert(9);
-        tree.insert(15);
-        tree.insert(12);
-        tree.insert(20);
+    tree.insert(9);
+    tree.insert(15);
+    tree.insert(12);
+    tree.insert(20);
     */
 
-    tree.delete(9);
-    /*
-        println!("{:?}", tree);
-        println!();
-        println!();
-        tree.delete(9);
-        println!();
-        println!();
-        println!("{:?}", tree);
-    */
+    // tree.delete(9);
+    println!("{:?}", tree);
+    println!();
+    println!();
+    tree.delete(Person::new(&ad, 12));
+    println!();
+    println!();
+    println!("{:?}", tree);
 }
